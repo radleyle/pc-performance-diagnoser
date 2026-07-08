@@ -15,7 +15,7 @@ from collector.db import count_rows, get_recent_metrics, init_db
 
 
 def main() -> None:
-    print("=== Step 4: One real snapshot ===\n")
+    print("=== : One real snapshot ===\n")
 
     init_db()
 

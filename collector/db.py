@@ -10,6 +10,7 @@ This module:
 import os
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 
@@ -170,6 +171,48 @@ def get_recent_metrics(limit: int = 5) -> list[sqlite3.Row]:
             LIMIT ?
             """,
             (limit,),
+        ).fetchall()
+        return list(rows)
+    finally:
+        conn.close()
+        
+def get_metrics_since(minutes: int = 60) -> list[sqlite3.Row]:
+    """Return metrics rows from the last N minutes, oldest first."""
+    cutoff_ms = int(time.time() * 1000) - (minutes * 60 * 1000)
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM metrics
+            WHERE timestamp >= ?
+            ORDER BY timestamp ASC
+            """,
+            (cutoff_ms,),
+        ).fetchall()
+        return list(rows)
+    finally:
+        conn.close()
+
+
+def get_latest_process_snapshots() -> list[sqlite3.Row]:
+    """Return process rows from the most recent snapshot timestamp."""
+    conn = get_connection()
+    try:
+        latest = conn.execute(
+            "SELECT MAX(timestamp) AS ts FROM process_snapshots"
+        ).fetchone()
+
+        if latest is None or latest["ts"] is None:
+            return []
+
+        rows = conn.execute(
+            """
+            SELECT * FROM process_snapshots
+            WHERE timestamp = ?
+            ORDER BY memory_mb DESC
+            """,
+            (latest["ts"],),
         ).fetchall()
         return list(rows)
     finally:

@@ -20,7 +20,7 @@ from collector.db import (
 
 
 def main() -> None:
-    print("=== Step 2: Database test ===\n")
+    print("=== : Database test ===\n")
 
     # 1. Show where the file will be created
     db_path = get_db_path()
