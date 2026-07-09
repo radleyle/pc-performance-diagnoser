@@ -1,12 +1,17 @@
 """HTTP route handlers for the PC Performance Diagnoser API."""
 
-from fastapi import APIRouter, Query
-
-from collector.db import get_latest_process_snapshots, get_metrics_since
+import json
+import time
+from fastapi import APIRouter, HTTPException, Query
+from collector.db import (
+    get_latest_process_snapshots,       
+    get_metrics_since,
+    insert_diagnosis,
+)
 from engine.detect import run_diagnosis
+from engine.llm import OllamaError, explain_diagnosis
 
 router = APIRouter()
-
 
 @router.get("/health")
 def health():
@@ -52,3 +57,27 @@ def get_processes():
 def diagnose():
     result = run_diagnosis(minutes=60)
     return result.model_dump()
+
+@router.post("/analyze")
+def analyze():
+    """
+    Run detection, send JSON to Ollama, return explanation.
+    This is the endpoint the dashboard Analyze button calls.
+    """
+    result = run_diagnosis(minutes=60)
+    diagnosis = result.model_dump()
+    try:
+        explanation = explain_diagnosis(diagnosis)
+    except OllamaError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    insert_diagnosis(
+        timestamp=int(time.time() * 1000),
+        issues_json=json.dumps(diagnosis),
+        ai_explanation=explanation,
+    )
+    return {
+        "status": diagnosis["status"],
+        "issues": diagnosis["issues"],
+        "top_processes": diagnosis["top_processes"],
+        "explanation": explanation,
+    }

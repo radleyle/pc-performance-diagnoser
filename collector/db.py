@@ -217,3 +217,22 @@ def get_latest_process_snapshots() -> list[sqlite3.Row]:
         return list(rows)
     finally:
         conn.close()
+        
+def insert_diagnosis(
+    timestamp: int,
+    issues_json: str,
+    ai_explanation: str | None = None,
+) -> None:
+    """Save one diagnosis result to history."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO diagnoses (timestamp, issues, ai_explanation)
+            VALUES (?, ?, ?)
+            """,
+            (timestamp, issues_json, ai_explanation),
+        )
+        conn.commit()
+    finally:
+        conn.close()
