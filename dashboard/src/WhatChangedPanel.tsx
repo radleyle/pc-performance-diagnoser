@@ -1,4 +1,5 @@
 import type { ComparisonSummary } from "./api";
+import PanelShell from "./PanelShell";
 
 type Props = {
   summary: ComparisonSummary | null;
@@ -20,10 +21,9 @@ function deltaClass(value: number | null | undefined): string {
 export default function WhatChangedPanel({ summary }: Props) {
   if (!summary) {
     return (
-      <section className="panel">
-        <h2>What changed? (1h)</h2>
+      <PanelShell title="What changed" description="Now vs 1 hour ago" collapsible defaultOpen={false}>
         <p className="muted">Loading comparison...</p>
-      </section>
+      </PanelShell>
     );
   }
 
@@ -31,18 +31,14 @@ export default function WhatChangedPanel({ summary }: Props) {
 
   if (!current || !past) {
     return (
-      <section className="panel">
-        <h2>What changed? (1h)</h2>
-        <p className="muted">
-          Not enough history yet — leave the collector running for an hour.
-        </p>
-      </section>
+      <PanelShell title="What changed" description="Now vs 1 hour ago" collapsible defaultOpen={false}>
+        <p className="muted">Needs about an hour of collector history.</p>
+      </PanelShell>
     );
   }
 
   return (
-    <section className="panel">
-      <h2>What changed? (1h)</h2>
+    <PanelShell title="What changed" description="Now vs 1 hour ago" collapsible defaultOpen={false}>
       <div className="comparison-grid">
         <div className="comparison-row">
           <span className="comparison-label">CPU</span>
@@ -54,7 +50,7 @@ export default function WhatChangedPanel({ summary }: Props) {
         </div>
 
         <div className="comparison-row">
-          <span className="comparison-label">RAM free</span>
+          <span className="comparison-label">RAM</span>
           <span>{current.ram_available_mb.toFixed(0)} MB</span>
           <span className="muted">was {past.ram_available_mb.toFixed(0)} MB</span>
           <span className={deltaClass(delta?.ram_available_mb)}>
@@ -64,7 +60,7 @@ export default function WhatChangedPanel({ summary }: Props) {
 
         {current.disk_free_gb != null && past.disk_free_gb != null && (
           <div className="comparison-row">
-            <span className="comparison-label">Disk free</span>
+            <span className="comparison-label">Disk</span>
             <span>{current.disk_free_gb.toFixed(1)} GB</span>
             <span className="muted">was {past.disk_free_gb.toFixed(1)} GB</span>
             <span className={deltaClass(delta?.disk_free_gb)}>
@@ -74,11 +70,9 @@ export default function WhatChangedPanel({ summary }: Props) {
         )}
 
         <div className="comparison-row">
-          <span className="comparison-label">Top process</span>
+          <span className="comparison-label">Top app</span>
           <span>{current_top_process?.app_name ?? "—"}</span>
-          <span className="muted">
-            was {past_top_process?.app_name ?? "—"}
-          </span>
+          <span className="muted">was {past_top_process?.app_name ?? "—"}</span>
           <span className="muted">
             {current_top_process
               ? `${current_top_process.memory_mb.toFixed(0)} MB`
@@ -86,6 +80,6 @@ export default function WhatChangedPanel({ summary }: Props) {
           </span>
         </div>
       </div>
-    </section>
+    </PanelShell>
   );
 }

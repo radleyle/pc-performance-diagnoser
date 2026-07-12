@@ -4,8 +4,10 @@ import json
 import time
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from api.system_status import check_collector, check_ollama
+from collector.cleanup import get_cleanup_preview, run_cleanup
 from collector.db import (
     get_latest_process_snapshots,
     get_metrics_since,
@@ -13,11 +15,19 @@ from collector.db import (
     insert_diagnosis,
 )
 from collector.process_groups import group_process_rows
+from collector.disk_scan import find_large_files, scan_home_folders
+from collector.process_control import kill_process, list_live_processes
+from collector.startup_items import list_startup_items
 from engine.detect import run_diagnosis
 from engine.llm import OllamaError, explain_diagnosis
 from engine.summary import build_comparison
 
 router = APIRouter()
+
+
+class CleanupRequest(BaseModel):
+    action_ids: list[str]
+
 
 @router.get("/health")
 def health():
@@ -78,6 +88,63 @@ def get_processes(grouped: bool = Query(default=True)):
             for row in rows
         ],
     }
+
+
+@router.get("/storage/breakdown")
+def storage_breakdown(limit: int = Query(default=10, ge=1, le=30)):
+    """Top-level home folder sizes."""
+    data = scan_home_folders(limit=limit)
+    return {"count": len(data), "data": data}
+
+
+@router.get("/storage/large-files")
+def storage_large_files(
+    min_mb: int = Query(default=500, ge=100, le=5000),
+    limit: int = Query(default=15, ge=1, le=50),
+):
+    """Largest files in the home directory."""
+    data = find_large_files(min_mb=min_mb, limit=limit)
+    return {"min_mb": min_mb, "count": len(data), "data": data}
+
+
+@router.get("/cleanup/preview")
+def cleanup_preview():
+    """Show safe cleanup options and reclaimable space."""
+    return get_cleanup_preview()
+
+
+@router.post("/cleanup/run")
+def cleanup_run(body: CleanupRequest):
+    """Run user-approved safe cleanup actions."""
+    if not body.action_ids:
+        raise HTTPException(status_code=400, detail="No actions selected")
+    return run_cleanup(body.action_ids)
+
+
+@router.get("/startup-items")
+def startup_items():
+    """Login / launch items (read-only, macOS)."""
+    data = list_startup_items()
+    return {"count": len(data), "data": data}
+
+
+@router.get("/processes/live")
+def get_live_processes(limit: int = Query(default=25, ge=1, le=50)):
+    """Running processes with PID for management actions."""
+    data = list_live_processes(limit=limit)
+    return {"count": len(data), "data": data}
+
+
+@router.post("/processes/{pid}/kill")
+def terminate_process(pid: int):
+    """Terminate a process by PID."""
+    if pid <= 0:
+        raise HTTPException(status_code=400, detail="Invalid PID")
+    result = kill_process(pid)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
+
 
 @router.get("/diagnoses")
 def get_diagnoses(limit: int = Query(default=20, ge=1, le=100)):

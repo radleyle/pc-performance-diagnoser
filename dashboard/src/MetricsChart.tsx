@@ -29,6 +29,16 @@ const TIME_RANGES = [
   { label: "6h", minutes: 360 },
 ] as const;
 
+const CHART_COLORS = {
+  grid: "var(--chart-grid)",
+  axis: "var(--chart-axis)",
+  cpu: "#38bdf8",
+  ram: "#34d399",
+  disk: "#fb923c",
+  tooltipBg: "var(--chart-tooltip-bg)",
+  tooltipBorder: "var(--border-strong)",
+};
+
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "2-digit",
@@ -59,7 +69,7 @@ export default function MetricsChart({ data, minutes, onMinutesChange }: Props) 
   return (
     <section className="panel chart-panel">
       <div className="panel-header">
-        <h2>CPU, RAM & Disk ({rangeLabel(minutes)})</h2>
+        <h2>Performance · {rangeLabel(minutes)}</h2>
         <div className="time-range">
           {TIME_RANGES.map((range) => (
             <button
@@ -78,29 +88,70 @@ export default function MetricsChart({ data, minutes, onMinutesChange }: Props) 
         <p className="muted">No metrics yet — start the collector.</p>
       ) : (
         <div className="chart-wrap">
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis dataKey="time" minTickGap={30} stroke="#888" />
-              <YAxis yAxisId="left" domain={[0, 100]} unit="%" stroke="#888" />
-              <YAxis yAxisId="right" orientation="right" unit=" MB" stroke="#888" />
-              <Tooltip />
-              <Legend />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke={CHART_COLORS.grid}
+                vertical={false}
+              />
+              <XAxis
+                dataKey="time"
+                minTickGap={30}
+                stroke={CHART_COLORS.axis}
+                tick={{ fill: "#71717a", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                yAxisId="left"
+                domain={[0, 100]}
+                unit="%"
+                stroke={CHART_COLORS.axis}
+                tick={{ fill: "#71717a", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                unit=" MB"
+                stroke={CHART_COLORS.axis}
+                tick={{ fill: "#71717a", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: CHART_COLORS.tooltipBg,
+                  border: `1px solid ${CHART_COLORS.tooltipBorder}`,
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "#a1a1aa" }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: 12, color: "#a1a1aa", paddingTop: 8 }}
+              />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="cpu"
                 name="CPU %"
-                stroke="#3b82f6"
+                stroke={CHART_COLORS.cpu}
+                strokeWidth={2}
                 dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
               />
               <Line
                 yAxisId="right"
                 type="monotone"
                 dataKey="ramAvailable"
                 name="RAM available"
-                stroke="#22c55e"
+                stroke={CHART_COLORS.ram}
+                strokeWidth={2}
                 dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
               />
               {hasDisk && (
                 <Line
@@ -108,9 +159,11 @@ export default function MetricsChart({ data, minutes, onMinutesChange }: Props) 
                   type="monotone"
                   dataKey="diskUsed"
                   name="Disk used %"
-                  stroke="#f97316"
+                  stroke={CHART_COLORS.disk}
+                  strokeWidth={2}
                   dot={false}
                   connectNulls
+                  activeDot={{ r: 4, strokeWidth: 0 }}
                 />
               )}
             </LineChart>

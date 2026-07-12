@@ -1,4 +1,5 @@
 import type { DiagnosisResponse } from "./api";
+import PanelShell from "./PanelShell";
 
 type Props = {
   diagnosis: DiagnosisResponse | null;
@@ -7,10 +8,9 @@ type Props = {
 export default function AlertsPanel({ diagnosis }: Props) {
   if (!diagnosis) {
     return (
-      <section className="panel">
-        <h2>Alerts</h2>
+      <PanelShell title="Alerts" collapsible defaultOpen>
         <p className="muted">Loading diagnosis...</p>
-      </section>
+      </PanelShell>
     );
   }
 
@@ -22,11 +22,11 @@ export default function AlertsPanel({ diagnosis }: Props) {
         : "badge ok";
 
   return (
-    <section className="panel">
-      <h2>Alerts</h2>
-      <p>
-        Status: <span className={statusClass}>{diagnosis.status}</span>
-      </p>
+    <PanelShell title="Alerts" collapsible defaultOpen>
+      <div className="alerts-status-row">
+        <span className="muted">Status</span>
+        <span className={statusClass}>{diagnosis.status}</span>
+      </div>
 
       {diagnosis.issues.length === 0 ? (
         <p className="muted">No issues detected.</p>
@@ -34,11 +34,12 @@ export default function AlertsPanel({ diagnosis }: Props) {
         <ul className="issue-list">
           {diagnosis.issues.map((issue, index) => (
             <li key={`${issue.type}-${index}`} className={`issue ${issue.severity}`}>
-              <strong>[{issue.severity}]</strong> {issue.message}
+              <span className="issue-tag">{issue.severity}</span>
+              {issue.message}
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </PanelShell>
   );
 }

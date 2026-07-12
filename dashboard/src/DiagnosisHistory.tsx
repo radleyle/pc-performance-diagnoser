@@ -1,4 +1,5 @@
 import type { DiagnosisHistoryItem } from "./api";
+import PanelShell from "./PanelShell";
 
 type Props = {
   history: DiagnosisHistoryItem[];
@@ -15,12 +16,14 @@ function formatTime(timestamp: number): string {
 
 export default function DiagnosisHistory({ history }: Props) {
   return (
-    <section className="panel history-panel">
-      <h2>Diagnosis history</h2>
-
+    <PanelShell
+      title="Scan history"
+      description="Past AI analyses from Smart Scan."
+      className="history-panel panel-full"
+    >
       {history.length === 0 ? (
         <p className="muted">
-          No analyses yet — click <strong>Analyze now</strong> above.
+          No scans yet — run <strong>Smart Scan</strong> on the Overview tab.
         </p>
       ) : (
         <ul className="history-list">
@@ -42,6 +45,6 @@ export default function DiagnosisHistory({ history }: Props) {
           ))}
         </ul>
       )}
-    </section>
+    </PanelShell>
   );
 }

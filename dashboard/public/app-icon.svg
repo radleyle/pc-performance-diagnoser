@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" rx="220" fill="url(#aurora-bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="180" fill="url(#aurora-glow)" opacity="0.5"/>
+  <path
+    d="M512 220L700 560H560L620 804L324 500H464L512 220Z"
+    fill="url(#bolt)"
+    stroke="rgba(255,255,255,0.4)"
+    stroke-width="8"
+    stroke-linejoin="round"
+  />
+  <circle cx="512" cy="512" r="360" stroke="rgba(255,255,255,0.15)" stroke-width="16"/>
+  <defs>
+    <linearGradient id="aurora-bg" x1="128" y1="64" x2="896" y2="960">
+      <stop stop-color="#0c4a6e"/>
+      <stop offset="0.5" stop-color="#0e7490"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="aurora-glow" x1="0" y1="0" x2="1024" y2="1024">
+      <stop stop-color="#22d3ee" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="324" y1="220" x2="700" y2="804">
+      <stop stop-color="#ecfeff"/>
+      <stop offset="1" stop-color="#a7f3d0"/>
+    </linearGradient>
+  </defs>
+</svg>

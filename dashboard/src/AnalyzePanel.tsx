@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { fetchAnalyze, type AnalyzeResponse } from "./api";
+import PanelShell from "./PanelShell";
+import ScanRing from "./ScanRing";
 
-export default function AnalyzePanel() {
+type Props = {
+  onScanComplete?: () => void;
+};
+
+export default function AnalyzePanel({ onScanComplete }: Props) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState("");
@@ -9,12 +15,13 @@ export default function AnalyzePanel() {
   async function handleAnalyze() {
     setLoading(true);
     setError("");
+    setResult(null);
 
     try {
       const data = await fetchAnalyze();
       setResult(data);
+      onScanComplete?.();
     } catch (err) {
-      setResult(null);
       setError(err instanceof Error ? err.message : "Analyze failed");
     } finally {
       setLoading(false);
@@ -22,26 +29,28 @@ export default function AnalyzePanel() {
   }
 
   return (
-    <section className="panel">
-      <h2>AI analysis</h2>
-      <p className="muted">
-        Runs detection, then asks the local LLM to explain the results.
-      </p>
-
-      <button onClick={handleAnalyze} disabled={loading} className="analyze-btn">
-        {loading ? "Analyzing..." : "Analyze now"}
-      </button>
+    <PanelShell
+      title="Smart Scan"
+      description="Run detection and get a plain-English explanation from your local AI."
+    >
+      {loading ? (
+        <ScanRing label="Analyzing metrics with local AI..." />
+      ) : (
+        <button onClick={handleAnalyze} disabled={loading} className="analyze-btn">
+          Run smart scan
+        </button>
+      )}
 
       {error && <p className="error">{error}</p>}
 
-      {result && (
+      {result && !loading && (
         <div className="analysis-result">
           <p>
-            Status: <span className={`badge ${result.status}`}>{result.status}</span>
+            <span className={`badge ${result.status}`}>{result.status}</span>
           </p>
           <p>{result.explanation}</p>
         </div>
       )}
-    </section>
+    </PanelShell>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { fetchReport } from "./api";
+import PanelShell from "./PanelShell";
 
 export default function ExportPanel() {
   const [loading, setLoading] = useState(false);
@@ -29,11 +30,12 @@ export default function ExportPanel() {
   }
 
   return (
-    <section className="panel">
-      <h2>Export report</h2>
-      <p className="muted">
-        Download a JSON snapshot of diagnosis, comparison, and top processes.
-      </p>
+    <PanelShell
+      title="Export"
+      description="Save a JSON snapshot of your current system report."
+      collapsible
+      defaultOpen={false}
+    >
       <button
         type="button"
         onClick={handleExport}
@@ -43,6 +45,6 @@ export default function ExportPanel() {
         {loading ? "Exporting..." : "Download report"}
       </button>
       {error && <p className="error">{error}</p>}
-    </section>
+    </PanelShell>
   );
 }

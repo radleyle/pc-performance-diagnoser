@@ -151,3 +151,90 @@ export type Issue = {
   export function fetchReport(): Promise<ReportResponse> {
     return fetchJson("/report");
   }
+
+  export type FolderSize = {
+    name: string;
+    path: string;
+    size_bytes: number;
+    size_gb: number;
+  };
+
+  export type LargeFile = {
+    name: string;
+    path: string;
+    size_bytes: number;
+    size_mb: number;
+  };
+
+  export type CleanupAction = {
+    id: string;
+    label: string;
+    description: string;
+    size_bytes: number;
+    size_mb: number;
+    available: boolean;
+  };
+
+  export type CleanupPreview = {
+    actions: CleanupAction[];
+    total_reclaimable_bytes: number;
+    total_reclaimable_mb: number;
+  };
+
+  export type StartupItem = {
+    name: string;
+    path: string;
+    location: string;
+    enabled: boolean;
+  };
+
+  export type LiveProcess = {
+    pid: number;
+    process_name: string;
+    memory_mb: number;
+    cpu_percent: number;
+  };
+
+  export function fetchStorageBreakdown(limit = 10) {
+    return fetchJson<{ count: number; data: FolderSize[] }>(
+      `/storage/breakdown?limit=${limit}`,
+    );
+  }
+
+  export function fetchLargeFiles(minMb = 500, limit = 15) {
+    return fetchJson<{ min_mb: number; count: number; data: LargeFile[] }>(
+      `/storage/large-files?min_mb=${minMb}&limit=${limit}`,
+    );
+  }
+
+  export function fetchCleanupPreview() {
+    return fetchJson<CleanupPreview>("/cleanup/preview");
+  }
+
+  export function runCleanup(actionIds: string[]) {
+    return fetchJson<{ results: { id: string; ok: boolean; message: string }[] }>(
+      "/cleanup/run",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_ids: actionIds }),
+      },
+    );
+  }
+
+  export function fetchStartupItems() {
+    return fetchJson<{ count: number; data: StartupItem[] }>("/startup-items");
+  }
+
+  export function fetchLiveProcesses(limit = 25) {
+    return fetchJson<{ count: number; data: LiveProcess[] }>(
+      `/processes/live?limit=${limit}`,
+    );
+  }
+
+  export function killProcess(pid: number) {
+    return fetchJson<{ ok: boolean; message: string }>(
+      `/processes/${pid}/kill`,
+      { method: "POST" },
+    );
+  }
