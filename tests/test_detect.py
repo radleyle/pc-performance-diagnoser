@@ -8,6 +8,8 @@ Run with: pytest tests/ -v
 import time
 
 from engine.detect import (
+    _check_disk_critical,
+    _check_disk_warning,
     _check_high_cpu,
     _check_memory_overflow,
     _check_process_hogs,
@@ -190,6 +192,50 @@ def test_high_cpu_needs_three_samples():
     ]
 
     issue = _check_high_cpu(rows)
+
+    assert issue is None
+
+
+# ---------------------------------------------------------------------------
+# Disk critical: free space < 2 GB
+# ---------------------------------------------------------------------------
+
+def test_disk_critical_fires_below_2gb():
+    issue = _check_disk_critical(disk_free_gb=1.5, disk_used_percent=95.0)
+
+    assert issue is not None
+    assert issue.type == "disk_critical"
+    assert issue.severity == "high"
+    assert "1.5" in issue.message
+
+
+def test_disk_critical_does_not_fire_when_enough_space():
+    issue = _check_disk_critical(disk_free_gb=20.0, disk_used_percent=50.0)
+
+    assert issue is None
+
+
+# ---------------------------------------------------------------------------
+# Disk warning: free < 10 GB OR used > 90%
+# ---------------------------------------------------------------------------
+
+def test_disk_warning_fires_when_free_below_10gb():
+    issue = _check_disk_warning(disk_free_gb=8.0, disk_used_percent=70.0)
+
+    assert issue is not None
+    assert issue.type == "disk_warning"
+    assert issue.severity == "medium"
+
+
+def test_disk_warning_fires_when_used_above_90_percent():
+    issue = _check_disk_warning(disk_free_gb=50.0, disk_used_percent=92.0)
+
+    assert issue is not None
+    assert issue.type == "disk_warning"
+
+
+def test_disk_warning_does_not_fire_when_healthy():
+    issue = _check_disk_warning(disk_free_gb=50.0, disk_used_percent=60.0)
 
     assert issue is None
 

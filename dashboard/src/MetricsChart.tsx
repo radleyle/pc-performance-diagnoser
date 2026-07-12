@@ -14,6 +14,7 @@ type ChartRow = {
   time: string;
   cpu: number;
   ramAvailable: number;
+  diskUsed: number | null;
 };
 
 type Props = {
@@ -47,12 +48,18 @@ export default function MetricsChart({ data, minutes, onMinutesChange }: Props) 
     time: formatTime(point.timestamp),
     cpu: point.cpu_percent,
     ramAvailable: Math.round(point.ram_available_mb),
+    diskUsed:
+      point.disk_used_percent != null
+        ? Math.round(point.disk_used_percent * 10) / 10
+        : null,
   }));
+
+  const hasDisk = chartData.some((row) => row.diskUsed != null);
 
   return (
     <section className="panel chart-panel">
       <div className="panel-header">
-        <h2>CPU & RAM ({rangeLabel(minutes)})</h2>
+        <h2>CPU, RAM & Disk ({rangeLabel(minutes)})</h2>
         <div className="time-range">
           {TIME_RANGES.map((range) => (
             <button
@@ -95,6 +102,17 @@ export default function MetricsChart({ data, minutes, onMinutesChange }: Props) 
                 stroke="#22c55e"
                 dot={false}
               />
+              {hasDisk && (
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="diskUsed"
+                  name="Disk used %"
+                  stroke="#f97316"
+                  dot={false}
+                  connectNulls
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>

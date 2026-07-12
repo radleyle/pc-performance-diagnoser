@@ -15,6 +15,7 @@ from collector.db import (
 from collector.process_groups import group_process_rows
 from engine.detect import run_diagnosis
 from engine.llm import OllamaError, explain_diagnosis
+from engine.summary import build_comparison
 
 router = APIRouter()
 
@@ -104,6 +105,28 @@ def get_diagnoses(limit: int = Query(default=20, ge=1, le=100)):
         )
 
     return {"count": len(data), "data": data}
+
+
+@router.get("/summary")
+def get_summary(minutes_ago: int = Query(default=60, ge=5, le=1440)):
+    """Compare current metrics to the closest snapshot from N minutes ago."""
+    return build_comparison(minutes_ago=minutes_ago)
+
+
+@router.get("/report")
+def get_report():
+    """Export a full snapshot: diagnosis, comparison, and top processes."""
+    diagnosis = run_diagnosis(minutes=60).model_dump()
+    comparison = build_comparison(minutes_ago=60)
+    rows = get_latest_process_snapshots()
+
+    return {
+        "generated_at": int(time.time() * 1000),
+        "diagnosis": diagnosis,
+        "comparison": comparison,
+        "top_processes": group_process_rows(rows),
+    }
+
 
 @router.post("/diagnose")
 def diagnose():

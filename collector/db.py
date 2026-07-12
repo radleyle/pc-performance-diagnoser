@@ -288,3 +288,73 @@ def get_recent_diagnoses(limit: int = 20) -> list[sqlite3.Row]:
         return list(rows)
     finally:
         conn.close()
+
+
+def get_metric_near(minutes_ago: int) -> sqlite3.Row | None:
+    """Return the metrics row closest to N minutes ago."""
+    target_ms = int(time.time() * 1000) - (minutes_ago * 60 * 1000)
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM metrics
+            ORDER BY ABS(timestamp - ?) ASC
+            LIMIT 1
+            """,
+            (target_ms,),
+        ).fetchone()
+        return row
+    finally:
+        conn.close()
+
+
+def get_process_snapshots_near(minutes_ago: int) -> list[sqlite3.Row]:
+    """Return process rows from the snapshot closest to N minutes ago."""
+    target_ms = int(time.time() * 1000) - (minutes_ago * 60 * 1000)
+
+    conn = get_connection()
+    try:
+        ts_row = conn.execute(
+            """
+            SELECT timestamp
+            FROM process_snapshots
+            ORDER BY ABS(timestamp - ?) ASC
+            LIMIT 1
+            """,
+            (target_ms,),
+        ).fetchone()
+
+        if ts_row is None:
+            return []
+
+        rows = conn.execute(
+            """
+            SELECT * FROM process_snapshots
+            WHERE timestamp = ?
+            ORDER BY memory_mb DESC
+            """,
+            (ts_row["timestamp"],),
+        ).fetchall()
+        return list(rows)
+    finally:
+        conn.close()
+
+
+def purge_old_data(retention_days: int) -> dict[str, int]:
+    """Delete rows older than retention_days. Returns deleted counts per table."""
+    cutoff_ms = int(time.time() * 1000) - (retention_days * 24 * 60 * 60 * 1000)
+
+    conn = get_connection()
+    try:
+        deleted = {}
+        for table in ("metrics", "process_snapshots", "diagnoses"):
+            cursor = conn.execute(
+                f"DELETE FROM {table} WHERE timestamp < ?",
+                (cutoff_ms,),
+            )
+            deleted[table] = cursor.rowcount
+        conn.commit()
+        return deleted
+    finally:
+        conn.close()

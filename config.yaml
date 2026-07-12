@@ -1,0 +1,20 @@
+# PC Performance Diagnoser — settings
+# Edit thresholds here instead of changing Python code.
+
+collector:
+  interval_seconds: 5
+  retention_days: 7
+  cleanup_every_cycles: 720  # ~1 hour at 5s intervals
+
+thresholds:
+  ram_critical_mb: 500
+  ram_warning_mb: 1024
+  ram_used_warning_percent: 90.0
+  process_hog_mb: 1024
+  cpu_high_percent: 90.0
+  cpu_high_consecutive_samples: 3
+  overflow_window_seconds: 60
+  overflow_drop_fraction: 0.50
+  disk_critical_free_gb: 2.0
+  disk_warning_free_gb: 10.0
+  disk_warning_used_percent: 90.0

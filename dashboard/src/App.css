@@ -331,3 +331,59 @@ td:nth-child(2) {
 .disk-bar-fill.critical {
   background: #f87171;
 }
+
+.comparison-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 0.8fr;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.comparison-label {
+  color: #aaa;
+  font-weight: 600;
+}
+
+.delta-up {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.delta-down {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.delta-neutral {
+  color: #888;
+}
+
+.secondary-btn {
+  background: #444;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: #555;
+}
+
+.notification-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.notification-toggle input {
+  accent-color: #3b82f6;
+}

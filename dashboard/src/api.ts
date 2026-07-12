@@ -104,3 +104,50 @@ export type Issue = {
   ): Promise<{ count: number; data: DiagnosisHistoryItem[] }> {
     return fetchJson(`/diagnoses?limit=${limit}`);
   }
+
+  export type MetricSnapshot = {
+    timestamp: number;
+    cpu_percent: number;
+    ram_available_mb: number;
+    ram_used_percent: number;
+    disk_free_gb: number | null;
+    disk_used_percent: number | null;
+  };
+
+  export type ProcessSnapshot = {
+    app_name: string;
+    memory_mb: number;
+    cpu_percent: number;
+  };
+
+  export type ComparisonSummary = {
+    minutes_ago: number;
+    current: MetricSnapshot | null;
+    past: MetricSnapshot | null;
+    delta: {
+      cpu_percent: number | null;
+      ram_available_mb: number | null;
+      ram_used_percent: number | null;
+      disk_free_gb: number | null;
+      disk_used_percent: number | null;
+    } | null;
+    current_top_process: ProcessSnapshot | null;
+    past_top_process: ProcessSnapshot | null;
+  };
+
+  export function fetchSummary(
+    minutesAgo = 60
+  ): Promise<ComparisonSummary> {
+    return fetchJson(`/summary?minutes_ago=${minutesAgo}`);
+  }
+
+  export type ReportResponse = {
+    generated_at: number;
+    diagnosis: DiagnosisResponse;
+    comparison: ComparisonSummary;
+    top_processes: ProcessRow[];
+  };
+
+  export function fetchReport(): Promise<ReportResponse> {
+    return fetchJson("/report");
+  }

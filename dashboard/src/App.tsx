@@ -5,6 +5,8 @@ import {
   fetchHealth,
   fetchMetrics,
   fetchProcesses,
+  fetchSummary,
+  type ComparisonSummary,
   type DiagnosisHistoryItem,
   type DiagnosisResponse,
   type HealthResponse,
@@ -19,6 +21,12 @@ import AnalyzePanel from "./AnalyzePanel";
 import ServiceStatus from "./ServiceStatus";
 import DiagnosisHistory from "./DiagnosisHistory";
 import DiskPanel from "./DiskPanel";
+import WhatChangedPanel from "./WhatChangedPanel";
+import ExportPanel from "./ExportPanel";
+import {
+  requestNotificationPermission,
+  useCriticalNotifications,
+} from "./useNotifications";
 
 const REFRESH_MS = 5000;
 
@@ -26,14 +34,22 @@ function App() {
   const [apiStatus, setApiStatus] = useState<"loading" | "connected" | "error">(
     "loading"
   );
-  const [health, setHealth] = useState<HealthResponse | null>(null);  
+  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricPoint[]>([]);
   const [processes, setProcesses] = useState<ProcessRow[]>([]);
   const [diagnosis, setDiagnosis] = useState<DiagnosisResponse | null>(null);
+  const [summary, setSummary] = useState<ComparisonSummary | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [history, setHistory] = useState<DiagnosisHistoryItem[]>([]);
   const [chartMinutes, setChartMinutes] = useState(60);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  useCriticalNotifications(diagnosis, notificationsEnabled);
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,12 +57,14 @@ function App() {
     async function loadData() {
       try {
         const healthRes = await fetchHealth();
-        const [metricsRes, processesRes, diagnosisRes, historyRes] = await Promise.all([
-          fetchMetrics(chartMinutes),
-          fetchProcesses(),
-          fetchDiagnose(),
-          fetchDiagnosisHistory(10),
-        ]);
+        const [metricsRes, processesRes, diagnosisRes, historyRes, summaryRes] =
+          await Promise.all([
+            fetchMetrics(chartMinutes),
+            fetchProcesses(),
+            fetchDiagnose(),
+            fetchDiagnosisHistory(10),
+            fetchSummary(60),
+          ]);
 
         if (cancelled) return;
 
@@ -55,6 +73,7 @@ function App() {
         setMetrics(metricsRes.data);
         setProcesses(processesRes.data);
         setDiagnosis(diagnosisRes);
+        setSummary(summaryRes);
         setErrorMessage("");
         setHistory(historyRes.data);
         setLastUpdated(new Date());
@@ -88,10 +107,21 @@ function App() {
               Refreshing every 5s
               {lastUpdated && (
                 <span className="last-updated">
-                  {" "}· Last updated {lastUpdated.toLocaleTimeString()}
+                  {" "}
+                  · Last updated {lastUpdated.toLocaleTimeString()}
                 </span>
               )}
             </p>
+            <label className="notification-toggle">
+              <input
+                type="checkbox"
+                checked={notificationsEnabled}
+                onChange={(event) =>
+                  setNotificationsEnabled(event.target.checked)
+                }
+              />
+              Desktop alerts when critical
+            </label>
           </>
         )}
         {apiStatus === "error" && (
@@ -112,8 +142,10 @@ function App() {
 
         <div className="side-column">
           <DiskPanel metrics={metrics} />
+          <WhatChangedPanel summary={summary} />
           <AlertsPanel diagnosis={diagnosis} />
           <AnalyzePanel />
+          <ExportPanel />
           <ProcessTable processes={processes} />
         </div>
 
