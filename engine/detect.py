@@ -21,6 +21,9 @@ CPU_HIGH_PERCENT = 90.0
 CPU_HIGH_CONSECUTIVE_SAMPLES = 3
 OVERFLOW_WINDOW_SECONDS = 60
 OVERFLOW_DROP_FRACTION = 0.50
+DISK_CRITICAL_FREE_GB = 2.0
+DISK_WARNING_FREE_GB = 10.0
+DISK_WARNING_USED_PERCENT = 90.0
 
 
 def _check_ram_critical(ram_available_mb: float, ram_used_percent: float) -> Issue | None:
@@ -49,6 +52,40 @@ def _check_ram_warning(ram_available_mb: float, ram_used_percent: float) -> Issu
             evidence={
                 "ram_available_mb": ram_available_mb,
                 "ram_used_percent": ram_used_percent,
+            },
+        )
+    return None
+
+
+def _check_disk_critical(disk_free_gb: float, disk_used_percent: float) -> Issue | None:
+    if disk_free_gb < DISK_CRITICAL_FREE_GB:
+        return Issue(
+            type="disk_critical",
+            severity="high",
+            message=f"Only {disk_free_gb:.1f} GB disk space free",
+            evidence={
+                "disk_free_gb": disk_free_gb,
+                "disk_used_percent": disk_used_percent,
+            },
+        )
+    return None
+
+
+def _check_disk_warning(disk_free_gb: float, disk_used_percent: float) -> Issue | None:
+    if (
+        disk_free_gb < DISK_WARNING_FREE_GB
+        or disk_used_percent > DISK_WARNING_USED_PERCENT
+    ):
+        return Issue(
+            type="disk_warning",
+            severity="medium",
+            message=(
+                f"Low disk space: {disk_free_gb:.1f} GB free, "
+                f"{disk_used_percent:.1f}% used"
+            ),
+            evidence={
+                "disk_free_gb": disk_free_gb,
+                "disk_used_percent": disk_used_percent,
             },
         )
     return None
@@ -167,12 +204,20 @@ def run_diagnosis(minutes: int = 60) -> DiagnosisResult:
         latest = metrics_rows[-1]
         ram_available_mb = float(latest["ram_available_mb"])
         ram_used_percent = float(latest["ram_used_percent"])
+        disk_free_gb = latest["disk_free_gb"]
+        disk_used_percent = latest["disk_used_percent"]
 
         for check in (
             _check_ram_critical(ram_available_mb, ram_used_percent),
             _check_ram_warning(ram_available_mb, ram_used_percent),
             _check_memory_overflow(metrics_rows),
             _check_high_cpu(metrics_rows),
+            _check_disk_critical(disk_free_gb, disk_used_percent)
+            if disk_free_gb is not None
+            else None,
+            _check_disk_warning(disk_free_gb, disk_used_percent)
+            if disk_free_gb is not None
+            else None,
         ):
             if check is not None:
                 issues.append(check)

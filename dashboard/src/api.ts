@@ -1,22 +1,36 @@
 const API_BASE = "http://127.0.0.1:8000";
 
+export type ServiceStatus = "ok" | "stale" | "down";
+
 export type HealthResponse = {
-  status: string;
-  service: string;
+  api: string;
+  collector: {
+    status: ServiceStatus;
+    last_snapshot_ms: number | null;
+    seconds_ago: number | null;
+    message: string;
+  };
+  ollama: {
+    status: ServiceStatus;
+    message: string;
+    models_available: number;
+  };
 };
 
 export type MetricPoint = {
-  timestamp: number;
-  cpu_percent: number;
-  ram_available_mb: number;
-  ram_used_percent: number;
+    timestamp: number;
+    cpu_percent: number;
+    ram_available_mb: number;
+    ram_used_percent: number;
+    disk_free_gb?: number | null;
+    disk_used_percent?: number | null;
 };
 
 export type ProcessRow = {
-  process_name: string;
-  memory_mb: number;
-  cpu_percent: number | null;
-  timestamp: number;
+    app_name: string;
+    memory_mb: number;
+    cpu_percent: number;
+    process_count: number;
 };
 
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
@@ -42,10 +56,11 @@ export function fetchMetrics(minutes = 60): Promise<{
 }
 
 export function fetchProcesses(): Promise<{
-  count: number;
-  data: ProcessRow[];
-}> {
-  return fetchJson("/processes");
+    count: number;
+    grouped: boolean;
+    data: ProcessRow[];
+  }> {
+    return fetchJson("/processes");
 }
 
 export type Issue = {
@@ -74,4 +89,18 @@ export type Issue = {
   
   export function fetchAnalyze(): Promise<AnalyzeResponse> {
     return fetchJson<AnalyzeResponse>("/analyze", { method: "POST" });
+  }
+
+  export type DiagnosisHistoryItem = {
+    id: number;
+    timestamp: number;
+    status: "ok" | "warning" | "critical" | "unknown";
+    issue_count: number;
+    explanation: string | null;
+  };
+  
+  export function fetchDiagnosisHistory(
+    limit = 20
+  ): Promise<{ count: number; data: DiagnosisHistoryItem[] }> {
+    return fetchJson(`/diagnoses?limit=${limit}`);
   }

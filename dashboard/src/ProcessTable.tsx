@@ -7,24 +7,26 @@ type Props = {
 export default function ProcessTable({ processes }: Props) {
   return (
     <section className="panel">
-      <h2>Top processes by memory</h2>
+      <h2>Top apps by memory</h2>
       {processes.length === 0 ? (
         <p className="muted">No process data yet.</p>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>Process</th>
+              <th>App</th>
+              <th>Processes</th>
               <th>Memory (MB)</th>
               <th>CPU %</th>
             </tr>
           </thead>
           <tbody>
-            {processes.map((proc, index) => (
-              <tr key={`${proc.process_name}-${index}`}>
-                <td>{proc.process_name}</td>
+            {processes.map((proc) => (
+              <tr key={proc.app_name}>
+                <td>{proc.app_name}</td>
+                <td>{proc.process_count}</td>
                 <td>{Math.round(proc.memory_mb)}</td>
-                <td>{proc.cpu_percent ?? "—"}</td>
+                <td>{proc.cpu_percent.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>

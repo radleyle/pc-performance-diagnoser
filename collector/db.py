@@ -54,6 +54,15 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _add_disk_columns_if_missing(conn: sqlite3.Connection) -> None:
+    """Add disk columns to existing databases created before Step 5."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(metrics)")}
+    if "disk_free_gb" not in columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN disk_free_gb REAL")
+    if "disk_used_percent" not in columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN disk_used_percent REAL")
+
+
 def init_db() -> None:
     """
     Create all tables if they don't exist yet.
@@ -63,11 +72,13 @@ def init_db() -> None:
     try:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS metrics (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp        INTEGER NOT NULL,
-                cpu_percent      REAL NOT NULL,
-                ram_available_mb REAL NOT NULL,
-                ram_used_percent REAL NOT NULL
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp          INTEGER NOT NULL,
+                cpu_percent        REAL NOT NULL,
+                ram_available_mb   REAL NOT NULL,
+                ram_used_percent   REAL NOT NULL,
+                disk_free_gb       REAL,
+                disk_used_percent  REAL
             );
 
             CREATE TABLE IF NOT EXISTS process_snapshots (
@@ -91,6 +102,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_process_snapshots_timestamp
                 ON process_snapshots (timestamp);
         """)
+        _add_disk_columns_if_missing(conn)
         conn.commit()
     finally:
         conn.close()
@@ -105,16 +117,28 @@ def insert_metric(
     cpu_percent: float,
     ram_available_mb: float,
     ram_used_percent: float,
+    disk_free_gb: float,
+    disk_used_percent: float,
 ) -> None:
     """Insert one system metrics row."""
     conn = get_connection()
     try:
         conn.execute(
             """
-            INSERT INTO metrics (timestamp, cpu_percent, ram_available_mb, ram_used_percent)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO metrics (
+                timestamp, cpu_percent, ram_available_mb, ram_used_percent,
+                disk_free_gb, disk_used_percent
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (timestamp, cpu_percent, ram_available_mb, ram_used_percent),
+            (
+                timestamp,
+                cpu_percent,
+                ram_available_mb,
+                ram_used_percent,
+                disk_free_gb,
+                disk_used_percent,
+            ),
         )
         conn.commit()
     finally:
@@ -234,5 +258,33 @@ def insert_diagnosis(
             (timestamp, issues_json, ai_explanation),
         )
         conn.commit()
+    finally:
+        conn.close()
+        
+def get_latest_metric_timestamp() -> int | None:
+    """Return the timestamp (ms) of the most recent metrics row, or None."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT MAX(timestamp) AS ts FROM metrics").fetchone()
+        if row is None or row["ts"] is None:
+            return None
+        return int(row["ts"])
+    finally:
+        conn.close()
+        
+def get_recent_diagnoses(limit: int = 20) -> list[sqlite3.Row]:
+    """Return the most recent diagnosis rows, newest first."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, timestamp, issues, ai_explanation
+            FROM diagnoses
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return list(rows)
     finally:
         conn.close()

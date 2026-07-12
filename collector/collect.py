@@ -4,6 +4,7 @@ Read CPU, RAM, and top processes from the OS using psutil.
 This module only *reads* data. Saving to SQLite happens in collect_snapshot().
 """
 
+import sys
 import time
 
 import psutil
@@ -14,20 +15,30 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def get_disk_path() -> str:
+    """Main system drive: C:\\ on Windows, / on macOS and Linux."""
+    if sys.platform == "win32":
+        return "C:\\"
+    return "/"
+
+
 def collect_system_metrics() -> dict:
     """
-    Read one system-wide snapshot: CPU % and RAM.
+    Read one system-wide snapshot: CPU %, RAM, and disk space.
 
     cpu_percent(interval=1) waits ~1 second to measure CPU accurately
     (same idea as Task Manager — you need a short window to measure usage).
     """
     cpu_percent = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory()
+    disk = psutil.disk_usage(get_disk_path())
 
     return {
         "cpu_percent": cpu_percent,
         "ram_available_mb": mem.available / (1024 ** 2),
         "ram_used_percent": mem.percent,
+        "disk_free_gb": disk.free / (1024 ** 3),
+        "disk_used_percent": disk.percent,
     }
 
 
@@ -81,6 +92,8 @@ def collect_snapshot() -> int:
         cpu_percent=metrics["cpu_percent"],
         ram_available_mb=metrics["ram_available_mb"],
         ram_used_percent=metrics["ram_used_percent"],
+        disk_free_gb=metrics["disk_free_gb"],
+        disk_used_percent=metrics["disk_used_percent"],
     )
 
     for proc in collect_top_processes(limit=10):
