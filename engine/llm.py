@@ -75,3 +75,55 @@ def explain_diagnosis(diagnosis: dict, model: str = DEFAULT_MODEL) -> str:
         raise OllamaError("Ollama returned an empty response")
 
     return explanation
+
+
+def explain_issue(issue: dict, model: str = DEFAULT_MODEL) -> str:
+    prompt = f"""You are a helpful PC performance assistant.
+Explain this ONE detected issue in plain English and give 2 practical next steps.
+Do not invent new issues or numbers.
+
+ISSUE JSON:
+{json.dumps(issue, indent=2)}
+
+Short explanation:"""
+
+    payload = {"model": model, "prompt": prompt, "stream": False}
+    try:
+        response = httpx.post(OLLAMA_URL, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+    except httpx.ConnectError as exc:
+        raise OllamaError("Cannot connect to Ollama. Is it running?") from exc
+    except httpx.HTTPError as exc:
+        raise OllamaError(f"Ollama request failed: {exc}") from exc
+
+    data = response.json()
+    explanation = data.get("response", "").strip()
+    if not explanation:
+        raise OllamaError("Ollama returned an empty response")
+    return explanation
+
+
+def suggest_actions(diagnosis: dict, model: str = DEFAULT_MODEL) -> str:
+    prompt = f"""You are a helpful PC performance assistant.
+Based ONLY on this diagnosis JSON, suggest 3 numbered, practical actions the user can take.
+Do not recommend deleting random files. Prefer quit apps, review startup items, free disk, restart heavy apps.
+
+DIAGNOSIS JSON:
+{json.dumps(diagnosis, indent=2)}
+
+Suggested actions:"""
+
+    payload = {"model": model, "prompt": prompt, "stream": False}
+    try:
+        response = httpx.post(OLLAMA_URL, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+    except httpx.ConnectError as exc:
+        raise OllamaError("Cannot connect to Ollama. Is it running?") from exc
+    except httpx.HTTPError as exc:
+        raise OllamaError(f"Ollama request failed: {exc}") from exc
+
+    data = response.json()
+    suggestions = data.get("response", "").strip()
+    if not suggestions:
+        raise OllamaError("Ollama returned an empty response")
+    return suggestions

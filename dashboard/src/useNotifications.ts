@@ -7,9 +7,39 @@ import {
 } from "@tauri-apps/plugin-notification";
 import type { DiagnosisResponse } from "./api";
 
+export type AlertLevel = "off" | "critical" | "all";
+
+const STORAGE_KEY = "pcdiagnoser-alert-level";
+
+export function loadAlertLevel(): AlertLevel {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === "off" || saved === "critical" || saved === "all") {
+    return saved;
+  }
+  return "all";
+}
+
+export function saveAlertLevel(level: AlertLevel) {
+  localStorage.setItem(STORAGE_KEY, level);
+}
+
+function shouldNotify(level: AlertLevel, status: string): boolean {
+  if (level === "off") return false;
+  if (status === "critical") return true;
+  if (level === "all" && status === "warning") return true;
+  return false;
+}
+
+function notificationTitle(status: string): string {
+  if (status === "critical") {
+    return "PC Performance Diagnoser — Critical";
+  }
+  return "PC Performance Diagnoser — Warning";
+}
+
 function buildNotificationBody(diagnosis: DiagnosisResponse): string {
   if (diagnosis.issues.length === 0) {
-    return "System status is critical.";
+    return `System status is ${diagnosis.status}.`;
   }
   return diagnosis.issues
     .slice(0, 3)
@@ -17,7 +47,7 @@ function buildNotificationBody(diagnosis: DiagnosisResponse): string {
     .join(" · ");
 }
 
-async function showNativeNotification(body: string) {
+async function showNativeNotification(title: string, body: string) {
   if (isTauri()) {
     let granted = await isPermissionGranted();
     if (!granted) {
@@ -25,10 +55,7 @@ async function showNativeNotification(body: string) {
       granted = permission === "granted";
     }
     if (granted) {
-      await sendNotification({
-        title: "PC Performance Diagnoser — Critical",
-        body,
-      });
+      await sendNotification({ title, body });
     }
     return;
   }
@@ -36,7 +63,7 @@ async function showNativeNotification(body: string) {
   if (!("Notification" in window)) return;
 
   const show = () => {
-    new Notification("PC Performance Diagnoser — Critical", { body });
+    new Notification(title, { body });
   };
 
   if (Notification.permission === "granted") {
@@ -51,27 +78,30 @@ async function showNativeNotification(body: string) {
   }
 }
 
-export function useCriticalNotifications(
+export function useStatusNotifications(
   diagnosis: DiagnosisResponse | null,
-  enabled: boolean,
+  alertLevel: AlertLevel,
 ) {
   const previousStatus = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!enabled || !diagnosis || diagnosis.status !== "critical") {
+    if (!diagnosis || !shouldNotify(alertLevel, diagnosis.status)) {
       if (diagnosis) {
         previousStatus.current = diagnosis.status;
       }
       return;
     }
 
-    if (previousStatus.current === "critical") {
+    if (previousStatus.current === diagnosis.status) {
       return;
     }
 
     previousStatus.current = diagnosis.status;
-    void showNativeNotification(buildNotificationBody(diagnosis));
-  }, [diagnosis, enabled]);
+    void showNativeNotification(
+      notificationTitle(diagnosis.status),
+      buildNotificationBody(diagnosis),
+    );
+  }, [diagnosis, alertLevel]);
 }
 
 export function requestNotificationPermission() {

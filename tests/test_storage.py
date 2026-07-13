@@ -9,10 +9,15 @@ def test_cleanup_preview_shape():
     assert "actions" in preview
     assert "total_reclaimable_bytes" in preview
     assert "total_reclaimable_mb" in preview
-    assert len(preview["actions"]) == 2
+    assert len(preview["actions"]) == 4
 
     for action in preview["actions"]:
-        assert action["id"] in {"empty_trash", "clear_user_caches"}
+        assert action["id"] in {
+            "empty_trash",
+            "clear_user_caches",
+            "clear_pip_cache",
+            "clear_npm_cache",
+        }
         assert "label" in action
         assert "size_mb" in action
         assert "available" in action

@@ -12,14 +12,22 @@ Collector → SQLite → Detection engine → FastAPI → Desktop app (or browse
 
 ## Quick start (returning users)
 
-From the project root, with your virtual environment active:
+**First time on this machine?** Run once:
+
+```bash
+./scripts/install.sh
+```
+
+Then launch:
 
 ```bash
 source .venv/bin/activate
 ./scripts/start-desktop.sh
 ```
 
-This starts the collector and API in the background and opens the **native desktop window**.
+Or double-click **`scripts/Launch Diagnoser.command`** in Finder.
+
+This starts the collector and API in the background and opens the **native desktop window**. The desktop app remembers your project folder and can auto-start the backend on future launches.
 
 When you're done:
 
@@ -53,7 +61,17 @@ git clone https://github.com/radleyle/pc-performance-diagnoser.git
 cd pc-performance-diagnoser
 ```
 
-### Step 3 — Set up Python
+### Step 3 — One-command install
+
+From the project root:
+
+```bash
+./scripts/install.sh
+```
+
+This creates `.venv`, installs Python + npm dependencies, and prepares the desktop app.
+
+Or set up manually:
 
 ```bash
 python3 -m venv .venv
@@ -226,12 +244,12 @@ Full-width chart showing CPU % (blue), available RAM (green), and disk used % (o
 
 Deep disk management in one place:
 
-1. **Folder breakdown** — sizes of top-level folders in your home directory
-2. **Large files** — files over 500 MB (configurable via API)
-3. **Safe cleanup** — preview and reclaim space from Trash and `~/Library/Caches` (you choose what to run)
+1. **Folder breakdown** — sizes of top-level folders (cached; **Rescan** for fresh data)
+2. **Large files** — adjustable threshold (250 MB–2 GB), **Show in Finder**, cached results
+3. **Safe cleanup** — preview Trash and caches, confirm twice (including typing `DELETE`)
 4. **Startup items** — read-only list of macOS LaunchAgents that run at login
 
-> Folder and file scans can take 10–30 seconds on first load.
+> Scans are cached for 1 hour. Cached results load instantly; use **Rescan** when you need fresh numbers.
 
 #### Processes
 
@@ -247,8 +265,10 @@ Past Smart Scan results with timestamps, status badges, and AI explanations.
 
 | Control | What it does |
 |---------|--------------|
-| **Alerts** checkbox | Native/browser notifications when status goes **critical** |
+| **Alerts** dropdown | **Warnings + critical** (default), **Critical only**, or **Off** — native notifications when status worsens |
 | **Light mode** (sidebar footer) | Toggle light/dark theme — aurora blue/green palette (saved automatically) |
+
+If the API is not running, a **setup banner** appears with install/launch steps and a **Retry connection** button.
 
 ### Menu bar tray (desktop)
 
@@ -304,18 +324,17 @@ You do **not** need to interact with these directly, but it helps to know:
 - REST API — metrics, processes, diagnosis, and AI analysis
 - Local AI — Ollama explains findings (no API key)
 
-### Dashboard & desktop
-- Native desktop app (macOS) via Tauri — auto-starts collector + API on launch
-- Menu bar tray icon — reopen window or quit from the menu bar
-- Aurora blue/green UI theme (distinct light/dark modes)
-- Sidebar navigation — Overview, Performance, Storage, Processes, History
-- Hero status panel with live stat cards
-- Collapsible panels, native notifications
-- Storage tools — folder breakdown, large files, safe cleanup, startup items
-- Live process list with stop action
-- Process grouping by app, diagnosis history, JSON export
-- Configurable thresholds via `config.yaml`
-- Auto data cleanup (default: 7 days retention)
+### Dashboard & desktop (v1.5)
+- **Insights tab** — weekly digest, app impact scores, network check, baseline learning, boot audit, AI action suggestions
+- **Why slow now?** — one-click short-window slowdown report on Overview
+- **Memory leak detection**, baseline anomalies, network latency, and battery warnings in alerts
+- **Scheduled scans** — automatic daily diagnosis from the collector (configurable in `config.yaml`)
+- **Storage extras** — folder growth, duplicates, developer junk, Photos/iCloud/Time Machine hints
+- **Process controls** — pause/resume, quit all helpers for an app, impact scores
+- **Startup toggles** — enable/disable user LaunchAgents
+- **Per-alert Explain** — Ollama explains individual issues
+- **Onboarding wizard** + **compact mode** toggle
+- All v1.4 features: one-command install, cached storage scans, configurable alerts, setup banner
 
 ---
 
@@ -365,8 +384,9 @@ Thresholds are configurable in `config.yaml`. No machine learning.
 | `/processes` | GET | Top processes (`?grouped=true` default) |
 | `/processes/live` | GET | Live processes with PID (`?limit=25`) |
 | `/processes/{pid}/kill` | POST | Terminate a process by PID |
-| `/storage/breakdown` | GET | Home folder sizes (`?limit=10`) |
-| `/storage/large-files` | GET | Large files (`?min_mb=500&limit=15`) |
+| `/storage/breakdown` | GET | Home folder sizes (`?limit=10&refresh=false`) |
+| `/storage/large-files` | GET | Large files (`?min_mb=500&limit=15&refresh=false`) |
+| `/storage/reveal` | POST | Reveal path in Finder (`{"path": "..."}`) |
 | `/cleanup/preview` | GET | Safe cleanup options and reclaimable space |
 | `/cleanup/run` | POST | Run selected cleanup actions (`action_ids`) |
 | `/startup-items` | GET | macOS login/launch items (read-only) |
@@ -400,6 +420,8 @@ python scripts/check_data.py
 
 | Script | Purpose |
 |--------|---------|
+| `scripts/install.sh` | **First-time setup** — venv, pip, npm in one command |
+| `scripts/Launch Diagnoser.command` | **Double-click launcher** for macOS Finder |
 | `scripts/start-desktop.sh` | **Recommended** — collector + API + desktop app |
 | `scripts/stop-desktop.sh` | Stop background services from desktop mode |
 | `scripts/start.sh` | Collector + API + browser dashboard |
@@ -444,6 +466,8 @@ python scripts/check_data.py
 source .venv/bin/activate
 pytest tests/ -v
 ```
+
+39 tests cover detection rules, storage cache, disk scan, API routes, cleanup, and reveal safety.
 
 ---
 

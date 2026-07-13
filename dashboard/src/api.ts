@@ -97,6 +97,7 @@ export type Issue = {
     status: "ok" | "warning" | "critical" | "unknown";
     issue_count: number;
     explanation: string | null;
+    source?: string;
   };
   
   export function fetchDiagnosisHistory(
@@ -159,6 +160,12 @@ export type Issue = {
     size_gb: number;
   };
 
+  export type StorageScanMeta = {
+    cached_at: number;
+    from_cache: boolean;
+    stale: boolean;
+  };
+
   export type LargeFile = {
     name: string;
     path: string;
@@ -193,18 +200,219 @@ export type Issue = {
     process_name: string;
     memory_mb: number;
     cpu_percent: number;
+    frozen?: boolean;
   };
 
-  export function fetchStorageBreakdown(limit = 10) {
-    return fetchJson<{ count: number; data: FolderSize[] }>(
-      `/storage/breakdown?limit=${limit}`,
+  export type SlowNowReport = {
+    generated_at: number;
+    window_minutes: number;
+    status: "ok" | "warning" | "critical";
+    headline: string;
+    likely_causes: string[];
+    metrics: { cpu_percent: number; cpu_delta: number; ram_used_percent: number };
+    top_movers: {
+      app_name: string;
+      memory_mb: number;
+      cpu_percent: number;
+      memory_delta_mb: number;
+    }[];
+    issues: Issue[];
+    startup_item_count: number;
+    network: { status: string; message: string };
+  };
+
+  export type AppImpact = {
+    app_name: string;
+    impact_score: number;
+    avg_memory_mb: number;
+    peak_memory_mb: number;
+    avg_cpu_percent: number;
+    snapshot_count: number;
+  };
+
+  export type WeeklyDigest = {
+    generated_at: number;
+    days: number;
+    diagnosis_counts: { warning: number; critical: number };
+    averages: { cpu_percent: number | null; ram_used_percent: number | null };
+    disk_free_gb: { start: number | null; end: number | null };
+    top_apps: AppImpact[];
+    smart_scans: number;
+  };
+
+  export type DuplicateGroup = {
+    name: string;
+    size_mb: number;
+    count: number;
+    waste_mb: number;
+    files: { name: string; path: string; size_mb: number }[];
+  };
+
+  export type DevJunkItem = {
+    name: string;
+    path: string;
+    category: string;
+    size_mb: number;
+  };
+
+  export type FolderGrowthItem = {
+    name: string;
+    path: string;
+    size_gb: number;
+    delta_gb: number;
+    has_history: boolean;
+  };
+
+  export type SystemHint = {
+    name: string;
+    path: string;
+    size_gb: number | null;
+    hint: string;
+  };
+
+  export type BaselineComparison = {
+    metric: string;
+    current: number;
+    baseline_p95: number;
+    delta: number;
+    abnormal: boolean;
+  };
+
+  export function fetchSlowNowReport(minutes = 5) {
+    return fetchJson<SlowNowReport>(`/report/slow-now?minutes=${minutes}`);
+  }
+
+  export function fetchWeeklyDigest() {
+    return fetchJson<WeeklyDigest>("/digest/weekly");
+  }
+
+  export function fetchAppImpact(minutes = 60) {
+    return fetchJson<{ count: number; data: AppImpact[] }>(
+      `/processes/impact?minutes=${minutes}`,
     );
   }
 
-  export function fetchLargeFiles(minMb = 500, limit = 15) {
-    return fetchJson<{ min_mb: number; count: number; data: LargeFile[] }>(
-      `/storage/large-files?min_mb=${minMb}&limit=${limit}`,
+  export function fetchNetworkStatus() {
+    return fetchJson<{
+      status: string;
+      message: string;
+      dns_latency_ms: number | null;
+      ping_latency_ms: number | null;
+    }>("/network/status");
+  }
+
+  export function fetchBaselineCompare() {
+    return fetchJson<{ comparisons: BaselineComparison[] }>("/baseline/compare");
+  }
+
+  export function fetchFolderGrowth(days = 7) {
+    return fetchJson<{ count: number; data: FolderGrowthItem[] }>(
+      `/storage/folder-growth?days=${days}`,
     );
+  }
+
+  export function fetchDuplicates(minMb = 10, refresh = false) {
+    return fetchJson<{ count: number; data: DuplicateGroup[] } & StorageScanMeta>(
+      `/storage/duplicates?min_mb=${minMb}&refresh=${refresh}`,
+    );
+  }
+
+  export function fetchDevJunk(refresh = false) {
+    return fetchJson<{ count: number; data: DevJunkItem[] } & StorageScanMeta>(
+      `/storage/dev-junk?refresh=${refresh}`,
+    );
+  }
+
+  export function fetchSystemHints() {
+    return fetchJson<{ count: number; data: SystemHint[] }>("/storage/system-hints");
+  }
+
+  export function fetchCleanupLog(limit = 10) {
+    return fetchJson<{
+      count: number;
+      data: {
+        id: number;
+        timestamp: number;
+        action_id: string;
+        path: string;
+        size_bytes: number;
+        restored: number;
+      }[];
+    }>(`/cleanup/log?limit=${limit}`);
+  }
+
+  export function explainIssue(issue: Issue) {
+    return fetchJson<{ explanation: string }>("/issues/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ issue }),
+    });
+  }
+
+  export function fetchActionSuggestions() {
+    return fetchJson<{ diagnosis: DiagnosisResponse; suggestions: string }>(
+      "/actions/suggest",
+      { method: "POST" },
+    );
+  }
+
+  export function fetchBootAudit() {
+    return fetchJson<{
+      startup_item_count: number;
+      startup_items: StartupItem[];
+      heavy_apps: AppImpact[];
+      message: string;
+    }>("/boot-audit");
+  }
+
+  export function toggleStartupItem(path: string, enabled: boolean) {
+    return fetchJson<{ ok: boolean; message: string }>("/startup-items/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, enabled }),
+    });
+  }
+
+  export function freezeProcess(pid: number) {
+    return fetchJson<{ ok: boolean; message: string }>(
+      `/processes/${pid}/freeze`,
+      { method: "POST" },
+    );
+  }
+
+  export function resumeProcess(pid: number) {
+    return fetchJson<{ ok: boolean; message: string }>(
+      `/processes/${pid}/resume`,
+      { method: "POST" },
+    );
+  }
+
+  export function quitAppGroup(appName: string) {
+    return fetchJson<{ ok: boolean; message: string }>("/processes/quit-app", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app_name: appName }),
+    });
+  }
+
+  export function fetchStorageBreakdown(limit = 10, refresh = false) {
+    return fetchJson<
+      { count: number; data: FolderSize[] } & StorageScanMeta
+    >(`/storage/breakdown?limit=${limit}&refresh=${refresh}`);
+  }
+
+  export function fetchLargeFiles(minMb = 500, limit = 15, refresh = false) {
+    return fetchJson<
+      { min_mb: number; count: number; data: LargeFile[] } & StorageScanMeta
+    >(`/storage/large-files?min_mb=${minMb}&limit=${limit}&refresh=${refresh}`);
+  }
+
+  export function revealInFinder(path: string) {
+    return fetchJson<{ ok: boolean; message: string }>("/storage/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
   }
 
   export function fetchCleanupPreview() {

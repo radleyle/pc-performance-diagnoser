@@ -1,7 +1,5 @@
 """
 Load settings from config.yaml at the project root.
-
-Falls back to built-in defaults if the file is missing or a key is absent.
 """
 
 from __future__ import annotations
@@ -20,6 +18,15 @@ class CollectorConfig:
     interval_seconds: int = 5
     retention_days: int = 7
     cleanup_every_cycles: int = 720
+    folder_snapshot_every_cycles: int = 720
+    baseline_every_cycles: int = 720
+
+
+@dataclass(frozen=True)
+class SchedulerConfig:
+    enabled: bool = True
+    interval_hours: int = 24
+    run_ai: bool = False
 
 
 @dataclass(frozen=True)
@@ -35,12 +42,24 @@ class ThresholdConfig:
     disk_critical_free_gb: float = 2.0
     disk_warning_free_gb: float = 10.0
     disk_warning_used_percent: float = 90.0
+    memory_leak_growth_mb: float = 200
+    memory_leak_window_minutes: int = 30
+    baseline_deviation_percent: float = 25
+    network_latency_warning_ms: float = 500
+
+
+@dataclass(frozen=True)
+class StorageConfig:
+    duplicate_min_mb: int = 10
+    folder_growth_days: int = 7
 
 
 @dataclass(frozen=True)
 class AppConfig:
     collector: CollectorConfig
+    scheduler: SchedulerConfig
     thresholds: ThresholdConfig
+    storage: StorageConfig
 
 
 def _merge_dict(defaults: dict, overrides: dict) -> dict:
@@ -54,12 +73,18 @@ def _merge_dict(defaults: dict, overrides: dict) -> dict:
 
 
 def load_config(path: Path | None = None) -> AppConfig:
-    """Load config.yaml, using defaults for any missing values."""
     defaults = {
         "collector": {
             "interval_seconds": 5,
             "retention_days": 7,
             "cleanup_every_cycles": 720,
+            "folder_snapshot_every_cycles": 720,
+            "baseline_every_cycles": 720,
+        },
+        "scheduler": {
+            "enabled": True,
+            "interval_hours": 24,
+            "run_ai": False,
         },
         "thresholds": {
             "ram_critical_mb": 500,
@@ -73,6 +98,14 @@ def load_config(path: Path | None = None) -> AppConfig:
             "disk_critical_free_gb": 2.0,
             "disk_warning_free_gb": 10.0,
             "disk_warning_used_percent": 90.0,
+            "memory_leak_growth_mb": 200,
+            "memory_leak_window_minutes": 30,
+            "baseline_deviation_percent": 25,
+            "network_latency_warning_ms": 500,
+        },
+        "storage": {
+            "duplicate_min_mb": 10,
+            "folder_growth_days": 7,
         },
     }
 
@@ -86,7 +119,9 @@ def load_config(path: Path | None = None) -> AppConfig:
 
     return AppConfig(
         collector=CollectorConfig(**data["collector"]),
+        scheduler=SchedulerConfig(**data["scheduler"]),
         thresholds=ThresholdConfig(**data["thresholds"]),
+        storage=StorageConfig(**data["storage"]),
     )
 
 
@@ -94,7 +129,6 @@ _config: AppConfig | None = None
 
 
 def get_config() -> AppConfig:
-    """Return cached config (loaded once per process)."""
     global _config
     if _config is None:
         _config = load_config()

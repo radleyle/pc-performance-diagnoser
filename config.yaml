@@ -5,6 +5,13 @@ collector:
   interval_seconds: 5
   retention_days: 7
   cleanup_every_cycles: 720  # ~1 hour at 5s intervals
+  folder_snapshot_every_cycles: 720
+  baseline_every_cycles: 720
+
+scheduler:
+  enabled: true
+  interval_hours: 24
+  run_ai: false
 
 thresholds:
   ram_critical_mb: 500
@@ -18,3 +25,11 @@ thresholds:
   disk_critical_free_gb: 2.0
   disk_warning_free_gb: 10.0
   disk_warning_used_percent: 90.0
+  memory_leak_growth_mb: 200
+  memory_leak_window_minutes: 30
+  baseline_deviation_percent: 25
+  network_latency_warning_ms: 500
+
+storage:
+  duplicate_min_mb: 10
+  folder_growth_days: 7

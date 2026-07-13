@@ -46,6 +46,20 @@ export default function CleanupPanel() {
 
   async function handleCleanup() {
     if (selected.size === 0) return;
+
+    const labels = preview?.actions
+      .filter((action) => selected.has(action.id))
+      .map((action) => `${action.label} (${action.size_mb} MB)`)
+      .join("\n• ");
+
+    const confirmed = window.confirm(
+      `Run these cleanup actions?\n\n• ${labels}\n\nThis cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    const typed = window.prompt('Type DELETE to confirm cleanup:');
+    if (typed !== "DELETE") return;
+
     setRunning(true);
     setMessage("");
     setError("");

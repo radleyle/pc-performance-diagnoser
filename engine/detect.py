@@ -7,7 +7,9 @@ No LLM here — just thresholds and simple pattern checks.
 
 import time
 
-from collector.db import get_latest_process_snapshots, get_metrics_since
+from collector.db import get_latest_process_snapshots, get_metrics_since, get_process_history
+from collector.network import check_network_status
+from engine.baseline import compare_to_baseline
 from engine.config import get_config
 from engine.schemas import DiagnosisResult, Issue, ProcessSummary, Status
 
@@ -184,6 +186,95 @@ def _check_high_cpu(metrics_rows) -> Issue | None:
     return None
 
 
+def _check_memory_leaks(minutes: int) -> list[Issue]:
+    """Flag processes whose memory grew significantly over the window."""
+    rows = get_process_history(minutes=minutes)
+    if not rows:
+        return []
+
+    thresholds = _thresholds()
+    growth_mb = thresholds.memory_leak_growth_mb
+    by_process: dict[str, list[float]] = {}
+
+    for row in rows:
+        by_process.setdefault(row["process_name"], []).append(float(row["memory_mb"]))
+
+    issues: list[Issue] = []
+    for process_name, samples in by_process.items():
+        if len(samples) < 3:
+            continue
+        delta = samples[-1] - samples[0]
+        if delta >= growth_mb and samples[-1] > thresholds.process_hog_mb / 2:
+            issues.append(
+                Issue(
+                    type="memory_leak",
+                    severity="medium",
+                    message=(
+                        f"{process_name} grew {delta:.0f} MB in "
+                        f"{thresholds.memory_leak_window_minutes} minutes"
+                    ),
+                    evidence={
+                        "process_name": process_name,
+                        "start_mb": round(samples[0], 1),
+                        "end_mb": round(samples[-1], 1),
+                        "growth_mb": round(delta, 1),
+                    },
+                )
+            )
+    return issues
+
+
+def _check_baseline_anomalies() -> list[Issue]:
+    issues: list[Issue] = []
+    for row in compare_to_baseline():
+        if row["abnormal"]:
+            issues.append(
+                Issue(
+                    type="baseline_anomaly",
+                    severity="medium",
+                    message=(
+                        f"{row['metric']} is {row['current']} — above your usual "
+                        f"{row['baseline_p95']} (p95)"
+                    ),
+                    evidence=row,
+                )
+            )
+    return issues
+
+
+def _check_network_degraded() -> Issue | None:
+    network = check_network_status()
+    latency = network.get("ping_latency_ms") or network.get("dns_latency_ms")
+    threshold = _thresholds().network_latency_warning_ms
+    if latency is not None and latency > threshold:
+        return Issue(
+            type="network_latency",
+            severity="medium",
+            message=f"Network latency is high ({latency:.0f} ms)",
+            evidence=network,
+        )
+    return None
+
+
+def _check_power_state() -> Issue | None:
+    try:
+        import psutil
+
+        battery = psutil.sensors_battery()
+        if battery is None:
+            return None
+        if not battery.power_plugged and battery.percent < 20:
+            return Issue(
+                type="low_battery",
+                severity="medium",
+                message=f"Battery at {battery.percent:.0f}% while unplugged",
+                evidence={"percent": battery.percent, "power_plugged": battery.power_plugged},
+            )
+    except Exception:
+        return None
+    return None
+
+
 def _compute_status(issues: list[Issue]) -> Status:
     if any(issue.severity == "high" for issue in issues):
         return "critical"
@@ -226,6 +317,12 @@ def run_diagnosis(minutes: int = 60) -> DiagnosisResult:
                 issues.append(check)
 
     issues.extend(_check_process_hogs(process_rows))
+    issues.extend(_check_memory_leaks(_thresholds().memory_leak_window_minutes))
+    issues.extend(_check_baseline_anomalies())
+
+    for check in (_check_network_degraded(), _check_power_state()):
+        if check is not None:
+            issues.append(check)
 
     top_processes = [
         ProcessSummary(name=row["process_name"], memory_mb=float(row["memory_mb"]))

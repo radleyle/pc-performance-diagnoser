@@ -8,25 +8,60 @@ from pydantic import BaseModel
 
 from api.system_status import check_collector, check_ollama
 from collector.cleanup import get_cleanup_preview, run_cleanup
+from collector.cleanup_log import list_recent_cleanup_actions
 from collector.db import (
     get_latest_process_snapshots,
     get_metrics_since,
     get_recent_diagnoses,
     insert_diagnosis,
 )
+from collector.dev_junk import scan_dev_junk
+from collector.duplicates import find_duplicate_groups
+from collector.folder_growth import get_folder_growth_report
+from collector.network import check_network_status
 from collector.process_groups import group_process_rows
 from collector.disk_scan import find_large_files, scan_home_folders
-from collector.process_control import kill_process, list_live_processes
-from collector.startup_items import list_startup_items
+from collector.process_control import (
+    freeze_process,
+    kill_process,
+    list_live_processes,
+    quit_app_group,
+    resume_process,
+)
+from collector.reveal import reveal_in_file_manager
+from collector.startup_items import list_startup_items, set_startup_item_enabled
+from collector.storage_cache import get_cached_or_compute
+from collector.system_hints import get_system_storage_hints
+from engine.baseline import compare_to_baseline
 from engine.detect import run_diagnosis
-from engine.llm import OllamaError, explain_diagnosis
+from engine.impact import compute_app_impact_scores
+from engine.llm import OllamaError, explain_diagnosis, explain_issue, suggest_actions
+from engine.slow_now import build_slow_now_report
 from engine.summary import build_comparison
+from engine.weekly_digest import build_weekly_digest
 
 router = APIRouter()
 
 
 class CleanupRequest(BaseModel):
     action_ids: list[str]
+
+
+class RevealRequest(BaseModel):
+    path: str
+
+
+class IssueExplainRequest(BaseModel):
+    issue: dict
+
+
+class StartupToggleRequest(BaseModel):
+    path: str
+    enabled: bool
+
+
+class AppQuitRequest(BaseModel):
+    app_name: str
 
 
 @router.get("/health")
@@ -91,20 +126,54 @@ def get_processes(grouped: bool = Query(default=True)):
 
 
 @router.get("/storage/breakdown")
-def storage_breakdown(limit: int = Query(default=10, ge=1, le=30)):
-    """Top-level home folder sizes."""
-    data = scan_home_folders(limit=limit)
-    return {"count": len(data), "data": data}
+def storage_breakdown(
+    limit: int = Query(default=10, ge=1, le=30),
+    refresh: bool = Query(default=False),
+):
+    """Top-level home folder sizes (cached; pass refresh=true to rescan)."""
+    result = get_cached_or_compute(
+        f"breakdown_{limit}",
+        lambda: scan_home_folders(limit=limit),
+        refresh=refresh,
+    )
+    return {
+        "count": len(result["data"]),
+        "data": result["data"],
+        "cached_at": result["cached_at"],
+        "from_cache": result["from_cache"],
+        "stale": result["stale"],
+    }
 
 
 @router.get("/storage/large-files")
 def storage_large_files(
     min_mb: int = Query(default=500, ge=100, le=5000),
     limit: int = Query(default=15, ge=1, le=50),
+    refresh: bool = Query(default=False),
 ):
-    """Largest files in the home directory."""
-    data = find_large_files(min_mb=min_mb, limit=limit)
-    return {"min_mb": min_mb, "count": len(data), "data": data}
+    """Largest files in the home directory (cached; pass refresh=true to rescan)."""
+    result = get_cached_or_compute(
+        f"large_files_{min_mb}_{limit}",
+        lambda: find_large_files(min_mb=min_mb, limit=limit),
+        refresh=refresh,
+    )
+    return {
+        "min_mb": min_mb,
+        "count": len(result["data"]),
+        "data": result["data"],
+        "cached_at": result["cached_at"],
+        "from_cache": result["from_cache"],
+        "stale": result["stale"],
+    }
+
+
+@router.post("/storage/reveal")
+def storage_reveal(body: RevealRequest):
+    """Reveal a path in Finder (macOS)."""
+    result = reveal_in_file_manager(body.path)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
 
 
 @router.get("/cleanup/preview")
@@ -168,6 +237,7 @@ def get_diagnoses(limit: int = Query(default=20, ge=1, le=100)):
                 "status": status,
                 "issue_count": issue_count,
                 "explanation": row["ai_explanation"],
+                "source": row["source"] if "source" in row.keys() else "manual",
             }
         )
 
@@ -216,10 +286,162 @@ def analyze():
         timestamp=int(time.time() * 1000),
         issues_json=json.dumps(diagnosis),
         ai_explanation=explanation,
+        source="manual",
     )
     return {
         "status": diagnosis["status"],
         "issues": diagnosis["issues"],
         "top_processes": diagnosis["top_processes"],
         "explanation": explanation,
+    }
+
+
+@router.get("/report/slow-now")
+def slow_now_report(minutes: int = Query(default=5, ge=1, le=30)):
+    return build_slow_now_report(minutes=minutes)
+
+
+@router.get("/digest/weekly")
+def weekly_digest():
+    return build_weekly_digest()
+
+
+@router.get("/processes/impact")
+def process_impact(minutes: int = Query(default=60, ge=5, le=10080)):
+    data = compute_app_impact_scores(minutes=minutes)
+    return {"minutes": minutes, "count": len(data), "data": data}
+
+
+@router.get("/network/status")
+def network_status():
+    return check_network_status()
+
+
+@router.get("/baseline/compare")
+def baseline_compare():
+    return {"comparisons": compare_to_baseline()}
+
+
+@router.get("/storage/folder-growth")
+def folder_growth(days: int = Query(default=7, ge=1, le=30)):
+    data = get_folder_growth_report(days=days)
+    return {"days": days, "count": len(data), "data": data}
+
+
+@router.get("/storage/duplicates")
+def storage_duplicates(
+    min_mb: int = Query(default=10, ge=1, le=500),
+    limit: int = Query(default=15, ge=1, le=30),
+    refresh: bool = Query(default=False),
+):
+    result = get_cached_or_compute(
+        f"duplicates_{min_mb}_{limit}",
+        lambda: find_duplicate_groups(min_mb=min_mb, limit=limit),
+        refresh=refresh,
+    )
+    return {
+        "count": len(result["data"]),
+        "data": result["data"],
+        "cached_at": result["cached_at"],
+        "from_cache": result["from_cache"],
+        "stale": result["stale"],
+    }
+
+
+@router.get("/storage/dev-junk")
+def storage_dev_junk(refresh: bool = Query(default=False)):
+    result = get_cached_or_compute(
+        "dev_junk",
+        scan_dev_junk,
+        refresh=refresh,
+    )
+    return {
+        "count": len(result["data"]),
+        "data": result["data"],
+        "cached_at": result["cached_at"],
+        "from_cache": result["from_cache"],
+        "stale": result["stale"],
+    }
+
+
+@router.get("/storage/system-hints")
+def storage_system_hints():
+    data = get_system_storage_hints()
+    return {"count": len(data), "data": data}
+
+
+@router.get("/cleanup/log")
+def cleanup_log(limit: int = Query(default=10, ge=1, le=50)):
+    data = list_recent_cleanup_actions(limit=limit)
+    return {"count": len(data), "data": data}
+
+
+@router.post("/startup-items/toggle")
+def startup_toggle(body: StartupToggleRequest):
+    result = set_startup_item_enabled(body.path, body.enabled)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
+
+
+@router.post("/processes/{pid}/freeze")
+def freeze_process_route(pid: int):
+    if pid <= 0:
+        raise HTTPException(status_code=400, detail="Invalid PID")
+    result = freeze_process(pid)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
+
+
+@router.post("/processes/{pid}/resume")
+def resume_process_route(pid: int):
+    if pid <= 0:
+        raise HTTPException(status_code=400, detail="Invalid PID")
+    result = resume_process(pid)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
+
+
+@router.post("/processes/quit-app")
+def quit_app_route(body: AppQuitRequest):
+    result = quit_app_group(body.app_name)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return result
+
+
+@router.post("/issues/explain")
+def explain_single_issue(body: IssueExplainRequest):
+    try:
+        explanation = explain_issue(body.issue)
+    except OllamaError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"explanation": explanation}
+
+
+@router.post("/actions/suggest")
+def suggest_action_plan():
+    diagnosis = run_diagnosis(minutes=60).model_dump()
+    try:
+        suggestions = suggest_actions(diagnosis)
+    except OllamaError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"diagnosis": diagnosis, "suggestions": suggestions}
+
+
+@router.get("/boot-audit")
+def boot_audit():
+    startup = list_startup_items()
+    impact = compute_app_impact_scores(minutes=60, limit=5)
+    return {
+        "startup_item_count": len(startup),
+        "startup_items": startup[:10],
+        "heavy_apps": impact,
+        "message": (
+            f"{len(startup)} login items detected"
+            if startup
+            else "No login items found"
+        ),
     }

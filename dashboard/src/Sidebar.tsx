@@ -2,6 +2,7 @@ import AppIcon from "./AppIcon";
 
 export type AppTab =
   | "overview"
+  | "insights"
   | "performance"
   | "storage"
   | "processes"
@@ -14,6 +15,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview" },
+  { id: "insights", label: "Insights" },
   { id: "performance", label: "Performance" },
   { id: "storage", label: "Storage" },
   { id: "processes", label: "Processes" },
@@ -25,6 +27,8 @@ type Props = {
   onTabChange: (tab: AppTab) => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  compactMode: boolean;
+  onToggleCompact: () => void;
 };
 
 function NavIcon({ tab }: { tab: AppTab }) {
@@ -34,6 +38,13 @@ function NavIcon({ tab }: { tab: AppTab }) {
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" strokeWidth="1.6" />
           <circle cx="10" cy="10" r="2.5" fill="currentColor" />
+        </svg>
+      );
+    case "insights":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M4 15 L8 6 L12 11 L16 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <circle cx="16" cy="4" r="1.5" fill="currentColor" />
         </svg>
       );
     case "performance":
@@ -84,6 +95,8 @@ export default function Sidebar({
   onTabChange,
   theme,
   onToggleTheme,
+  compactMode,
+  onToggleCompact,
 }: Props) {
   return (
     <aside className="sidebar">
@@ -115,6 +128,17 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar-footer">
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={onToggleCompact}
+          aria-label="Toggle compact mode"
+        >
+          <span className="theme-toggle-icon" aria-hidden="true">
+            ◫
+          </span>
+          <span>{compactMode ? "Full layout" : "Compact mode"}</span>
+        </button>
         <button
           type="button"
           className="theme-toggle"

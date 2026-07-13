@@ -32,6 +32,9 @@ export default function DiagnosisHistory({ history }: Props) {
               <div className="history-header">
                 <span className="history-time">{formatTime(item.timestamp)}</span>
                 <span className={`badge ${item.status}`}>{item.status}</span>
+                {item.source && item.source !== "manual" && (
+                  <span className="history-source muted">{item.source}</span>
+                )}
                 {item.issue_count > 0 && (
                   <span className="history-issues">
                     {item.issue_count} issue{item.issue_count !== 1 ? "s" : ""}

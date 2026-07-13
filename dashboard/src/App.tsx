@@ -21,16 +21,38 @@ import DiskPanel from "./DiskPanel";
 import WhatChangedPanel from "./WhatChangedPanel";
 import ExportPanel from "./ExportPanel";
 import StatusHero from "./StatusHero";
+import SlowNowPanel from "./SlowNowPanel";
 import LiveProcessPanel from "./LiveProcessPanel";
 import StorageBreakdownPanel from "./StorageBreakdownPanel";
 import LargeFilesPanel from "./LargeFilesPanel";
 import CleanupPanel from "./CleanupPanel";
 import StartupPanel from "./StartupPanel";
+import SetupBanner from "./SetupBanner";
+import OnboardingWizard from "./OnboardingWizard";
 import Sidebar, { type AppTab } from "./Sidebar";
 import {
+  ActionSuggestionsPanel,
+  BaselinePanel,
+  BootAuditPanel,
+  ImpactPanel,
+  NetworkPanel,
+  WeeklyDigestPanel,
+} from "./InsightsPanels";
+import {
+  DevJunkPanel,
+  DuplicatesPanel,
+  FolderGrowthPanel,
+  SystemHintsPanel,
+} from "./StorageExtrasPanels";
+import {
+  loadAlertLevel,
   requestNotificationPermission,
-  useCriticalNotifications,
+  saveAlertLevel,
+  useStatusNotifications,
+  type AlertLevel,
 } from "./useNotifications";
+import { loadCompactMode, saveCompactMode } from "./useCompactMode";
+import { isOnboarded } from "./useOnboarding";
 import { useTheme } from "./useTheme";
 
 const REFRESH_MS = 5000;
@@ -39,7 +61,7 @@ function App() {
   const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<AppTab>("overview");
   const [apiStatus, setApiStatus] = useState<"loading" | "connected" | "error">(
-    "loading"
+    "loading",
   );
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricPoint[]>([]);
@@ -49,9 +71,12 @@ function App() {
   const [history, setHistory] = useState<DiagnosisHistoryItem[]>([]);
   const [chartMinutes, setChartMinutes] = useState(60);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [alertLevel, setAlertLevel] = useState<AlertLevel>(() => loadAlertLevel());
+  const [compactMode, setCompactMode] = useState(() => loadCompactMode());
+  const [showOnboarding, setShowOnboarding] = useState(() => !isOnboarded());
+  const [retryKey, setRetryKey] = useState(0);
 
-  useCriticalNotifications(diagnosis, notificationsEnabled);
+  useStatusNotifications(diagnosis, alertLevel);
 
   const refreshHistory = useCallback(async () => {
     const historyRes = await fetchDiagnosisHistory(10);
@@ -90,7 +115,7 @@ function App() {
         if (cancelled) return;
         setApiStatus("error");
         setErrorMessage(
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : "Unknown error",
         );
       }
     }
@@ -102,20 +127,42 @@ function App() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [chartMinutes]);
+  }, [chartMinutes, retryKey]);
+
+  function handleAlertLevelChange(level: AlertLevel) {
+    setAlertLevel(level);
+    saveAlertLevel(level);
+  }
+
+  function handleToggleCompact() {
+    setCompactMode((prev) => {
+      const next = !prev;
+      saveCompactMode(next);
+      return next;
+    });
+  }
+
+  function handleRetryConnection() {
+    setApiStatus("loading");
+    setRetryKey((value) => value + 1);
+  }
 
   function handleScanComplete() {
     refreshHistory();
     setActiveTab("history");
   }
 
+  const shellClass = compactMode ? "app-shell compact-mode" : "app-shell";
+
   return (
-    <div className="app-shell">
+    <div className={shellClass}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         theme={theme}
         onToggleTheme={toggleTheme}
+        compactMode={compactMode}
+        onToggleCompact={handleToggleCompact}
       />
 
       <div className="app-main">
@@ -123,6 +170,7 @@ function App() {
           <div className="page-heading">
             <h2 className="page-title">
               {activeTab === "overview" && "Overview"}
+              {activeTab === "insights" && "Insights"}
               {activeTab === "performance" && "Performance"}
               {activeTab === "storage" && "Storage"}
               {activeTab === "processes" && "Processes"}
@@ -147,14 +195,17 @@ function App() {
                   )}
                 </span>
                 <label className="notification-toggle">
-                  <input
-                    type="checkbox"
-                    checked={notificationsEnabled}
+                  <span>Alerts</span>
+                  <select
+                    value={alertLevel}
                     onChange={(event) =>
-                      setNotificationsEnabled(event.target.checked)
+                      handleAlertLevelChange(event.target.value as AlertLevel)
                     }
-                  />
-                  Alerts
+                  >
+                    <option value="all">Warnings + critical</option>
+                    <option value="critical">Critical only</option>
+                    <option value="off">Off</option>
+                  </select>
                 </label>
               </div>
             </div>
@@ -166,26 +217,52 @@ function App() {
         </header>
 
         <div className="tab-content">
-          {activeTab === "overview" && (
+          {showOnboarding && apiStatus === "connected" && (
+            <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+          )}
+
+          {apiStatus === "error" && (
+            <SetupBanner onRetry={handleRetryConnection} />
+          )}
+
+          {apiStatus === "loading" && (
+            <p className="muted setup-loading">Connecting to API...</p>
+          )}
+
+          {activeTab === "overview" && apiStatus === "connected" && (
             <div className="tab-overview">
-              {apiStatus === "connected" && (
-                <StatusHero diagnosis={diagnosis} metrics={metrics} />
-              )}
+              <StatusHero diagnosis={diagnosis} metrics={metrics} />
+              <SlowNowPanel />
               <div className="overview-grid">
                 <div className="overview-primary">
                   <AlertsPanel diagnosis={diagnosis} />
-                  <AnalyzePanel onScanComplete={handleScanComplete} />
+                  {!compactMode && (
+                    <AnalyzePanel onScanComplete={handleScanComplete} />
+                  )}
                 </div>
-                <div className="overview-secondary">
-                  <DiskPanel metrics={metrics} />
-                  <WhatChangedPanel summary={summary} />
-                  <ExportPanel />
-                </div>
+                {!compactMode && (
+                  <div className="overview-secondary">
+                    <DiskPanel metrics={metrics} />
+                    <WhatChangedPanel summary={summary} />
+                    <ExportPanel />
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {activeTab === "performance" && (
+          {activeTab === "insights" && apiStatus === "connected" && (
+            <div className="insights-tab">
+              <WeeklyDigestPanel />
+              <ImpactPanel />
+              <NetworkPanel />
+              <BaselinePanel />
+              <BootAuditPanel />
+              <ActionSuggestionsPanel />
+            </div>
+          )}
+
+          {activeTab === "performance" && apiStatus === "connected" && (
             <MetricsChart
               data={metrics}
               minutes={chartMinutes}
@@ -193,18 +270,26 @@ function App() {
             />
           )}
 
-          {activeTab === "storage" && (
+          {activeTab === "storage" && apiStatus === "connected" && (
             <div className="storage-tab">
               <StorageBreakdownPanel />
+              <FolderGrowthPanel />
               <LargeFilesPanel />
+              <DuplicatesPanel />
+              <DevJunkPanel />
+              <SystemHintsPanel />
               <CleanupPanel />
               <StartupPanel />
             </div>
           )}
 
-          {activeTab === "processes" && <LiveProcessPanel />}
+          {activeTab === "processes" && apiStatus === "connected" && (
+            <LiveProcessPanel />
+          )}
 
-          {activeTab === "history" && <DiagnosisHistory history={history} />}
+          {activeTab === "history" && apiStatus === "connected" && (
+            <DiagnosisHistory history={history} />
+          )}
         </div>
       </div>
     </div>

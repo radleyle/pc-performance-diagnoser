@@ -40,6 +40,8 @@ def get_cleanup_preview() -> dict:
     """Return reclaimable space for safe cleanup categories."""
     trash_bytes = _trash_size()
     cache_bytes = _cache_size()
+    pip_cache = _dir_size_shallow(Path.home() / "Library" / "Caches" / "pip")
+    npm_cache = _dir_size_shallow(Path.home() / ".npm")
 
     actions = [
         {
@@ -58,6 +60,22 @@ def get_cleanup_preview() -> dict:
             "size_mb": round(cache_bytes / (1024**2), 1),
             "available": cache_bytes > 0,
         },
+        {
+            "id": "clear_pip_cache",
+            "label": "Clear pip cache",
+            "description": "Remove downloaded Python package wheels.",
+            "size_bytes": pip_cache,
+            "size_mb": round(pip_cache / (1024**2), 1),
+            "available": pip_cache > 0,
+        },
+        {
+            "id": "clear_npm_cache",
+            "label": "Clear npm cache",
+            "description": "Remove cached npm packages.",
+            "size_bytes": npm_cache,
+            "size_mb": round(npm_cache / (1024**2), 1),
+            "available": npm_cache > 0,
+        },
     ]
 
     total = sum(a["size_bytes"] for a in actions if a["available"])
@@ -71,7 +89,12 @@ def get_cleanup_preview() -> dict:
 
 def run_cleanup(action_ids: list[str]) -> dict:
     """Run only whitelisted cleanup actions."""
-    allowed = {"empty_trash", "clear_user_caches"}
+    allowed = {
+        "empty_trash",
+        "clear_user_caches",
+        "clear_pip_cache",
+        "clear_npm_cache",
+    }
     results: list[dict] = []
 
     for action_id in action_ids:
@@ -83,6 +106,10 @@ def run_cleanup(action_ids: list[str]) -> dict:
             results.append(_empty_trash())
         elif action_id == "clear_user_caches":
             results.append(_clear_user_caches())
+        elif action_id == "clear_pip_cache":
+            results.append(_clear_path_cache(Path.home() / "Library" / "Caches" / "pip", "clear_pip_cache"))
+        elif action_id == "clear_npm_cache":
+            results.append(_clear_path_cache(Path.home() / ".npm", "clear_npm_cache"))
 
     return {"results": results}
 
@@ -139,3 +166,22 @@ def _clear_user_caches() -> dict:
         "ok": True,
         "message": f"Cleared {removed} cache folder(s)",
     }
+
+
+def _clear_path_cache(path: Path, action_id: str) -> dict:
+    if not path.exists():
+        return {"id": action_id, "ok": True, "message": "Already empty"}
+
+    size_bytes = _dir_size_shallow(path)
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+        return {
+            "id": action_id,
+            "ok": True,
+            "message": f"Cleared {round(size_bytes / (1024**2), 1)} MB",
+            "path": str(path),
+            "size_bytes": size_bytes,
+        }
+    except OSError as exc:
+        return {"id": action_id, "ok": False, "message": str(exc)}

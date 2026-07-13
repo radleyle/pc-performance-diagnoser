@@ -4,7 +4,8 @@ Disk usage analysis: folder breakdown and large file discovery.
 
 from __future__ import annotations
 
-import os
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -40,8 +41,67 @@ def _dir_size(path: Path, *, max_depth: int = 3, _depth: int = 0) -> int:
     return total
 
 
+def _scan_home_folders_du(limit: int) -> list[dict] | None:
+    """Fast top-level folder sizes on macOS using du."""
+    if sys.platform != "darwin":
+        return None
+
+    home = Path.home()
+    try:
+        result = subprocess.run(
+            ["du", "-sk", "-d", "1", str(home)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+
+    results: list[dict] = []
+    for line in result.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            size_kb = int(parts[0])
+        except ValueError:
+            continue
+
+        folder = Path(parts[1])
+        if folder == home:
+            continue
+        if not folder.is_dir():
+            continue
+        if folder.name.startswith(".") and folder.name not in {".Trash"}:
+            continue
+
+        size_bytes = size_kb * 1024
+        if size_bytes <= 0:
+            continue
+
+        results.append(
+            {
+                "name": folder.name,
+                "path": str(folder),
+                "size_bytes": size_bytes,
+                "size_gb": round(size_bytes / (1024**3), 2),
+            }
+        )
+
+    results.sort(key=lambda row: row["size_bytes"], reverse=True)
+    return results[:limit]
+
+
 def scan_home_folders(limit: int = 12) -> list[dict]:
     """Size of each top-level folder in the user's home directory."""
+    fast = _scan_home_folders_du(limit)
+    if fast is not None:
+        return fast
+
     home = Path.home()
     results: list[dict] = []
 

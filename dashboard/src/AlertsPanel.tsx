@@ -1,4 +1,6 @@
-import type { DiagnosisResponse } from "./api";
+import { useState } from "react";
+import type { DiagnosisResponse, Issue } from "./api";
+import { explainIssue } from "./api";
 import PanelShell from "./PanelShell";
 
 type Props = {
@@ -6,6 +8,10 @@ type Props = {
 };
 
 export default function AlertsPanel({ diagnosis }: Props) {
+  const [explaining, setExplaining] = useState<string | null>(null);
+  const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+
   if (!diagnosis) {
     return (
       <PanelShell title="Alerts" collapsible defaultOpen>
@@ -21,6 +27,20 @@ export default function AlertsPanel({ diagnosis }: Props) {
         ? "badge warning"
         : "badge ok";
 
+  async function handleExplain(issue: Issue, index: number) {
+    const key = `${issue.type}-${index}`;
+    setExplaining(key);
+    setError("");
+    try {
+      const res = await explainIssue(issue);
+      setExplanations((prev) => ({ ...prev, [key]: res.explanation }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Explain failed");
+    } finally {
+      setExplaining(null);
+    }
+  }
+
   return (
     <PanelShell title="Alerts" collapsible defaultOpen>
       <div className="alerts-status-row">
@@ -32,14 +52,29 @@ export default function AlertsPanel({ diagnosis }: Props) {
         <p className="muted">No issues detected.</p>
       ) : (
         <ul className="issue-list">
-          {diagnosis.issues.map((issue, index) => (
-            <li key={`${issue.type}-${index}`} className={`issue ${issue.severity}`}>
-              <span className="issue-tag">{issue.severity}</span>
-              {issue.message}
-            </li>
-          ))}
+          {diagnosis.issues.map((issue, index) => {
+            const key = `${issue.type}-${index}`;
+            return (
+              <li key={key} className={`issue ${issue.severity}`}>
+                <span className="issue-tag">{issue.severity}</span>
+                {issue.message}
+                <button
+                  type="button"
+                  className="ghost-btn issue-explain-btn"
+                  disabled={explaining === key}
+                  onClick={() => handleExplain(issue, index)}
+                >
+                  {explaining === key ? "..." : "Explain"}
+                </button>
+                {explanations[key] && (
+                  <p className="issue-explanation muted">{explanations[key]}</p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
+      {error && <p className="error">{error}</p>}
     </PanelShell>
   );
 }
