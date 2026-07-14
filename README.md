@@ -12,14 +12,13 @@ Collector → SQLite → Detection engine → FastAPI → Desktop app (or browse
 
 ## Demo
 
-<div align="center">
-  <a href="https://www.loom.com/share/17e3134ea1f647a6abbc23affe1f73a7">
-    <img
-      style="max-width:700px;"
-      src="https://cdn.loom.com/sessions/thumbnails/17e3134ea1f647a6abbc23affe1f73a7-with-play.gif"
-      alt="Watch the demo"
-    >
-  </a>
+<div>
+    <a href="https://www.loom.com/share/17e3134ea1f647a6abbc23affe1f73a7">
+      <p>PC Performance Diagnoser Demo - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/17e3134ea1f647a6abbc23affe1f73a7">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/17e3134ea1f647a6abbc23affe1f73a7-1152746350110695-full-play.gif#t=0.1">
+    </a>
 </div>
 
 ---
