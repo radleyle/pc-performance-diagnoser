@@ -12,7 +12,15 @@ Collector → SQLite → Detection engine → FastAPI → Desktop app (or browse
 
 ## Demo
 
-<div style="position: relative; padding-bottom: 51.5625%; height: 0;"><iframe src="https://www.loom.com/embed/17e3134ea1f647a6abbc23affe1f73a7" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
+<div align="center">
+  <a href="https://www.loom.com/share/17e3134ea1f647a6abbc23affe1f73a7">
+    <img
+      style="max-width:700px;"
+      src="https://cdn.loom.com/sessions/thumbnails/17e3134ea1f647a6abbc23affe1f73a7-with-play.gif"
+      alt="Watch the demo"
+    >
+  </a>
+</div>
 
 ---
 
